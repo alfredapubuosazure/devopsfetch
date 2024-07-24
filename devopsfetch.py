@@ -1,98 +1,88 @@
+import logging
+logging.basicConfig(filename='/home/ubuntu/devopsfetch/debug.log', level=logging.INFO)
+logging.info('Script started')
+
 import argparse
-import os
-import subprocess
-import pwd
-import grp
-import time
+import psutil
+import docker
 from prettytable import PrettyTable
+import time
+import logging
 
-def list_ports():
-    output = subprocess.check_output(['ss', '-tuln']).decode()
-    print(output)
-
-def port_details(port_number):
-    output = subprocess.check_output(['ss', '-tulnp', f"sport = :{port_number}"]).decode()
-    print(output)
-
-def list_docker():
-    images = subprocess.check_output(['docker', 'images']).decode()
-    containers = subprocess.check_output(['docker', 'ps', '-a']).decode()
-    print("Docker Images:\n", images)
-    print("Docker Containers:\n", containers)
-
-def docker_details(container_name):
-    container_info = subprocess.check_output(['docker', 'inspect', container_name]).decode()
-    print(container_info)
-
-def list_nginx():
-    nginx_config = subprocess.check_output(['nginx', '-T']).decode()
-    print(nginx_config)
-
-def nginx_details(domain):
-    nginx_config = subprocess.check_output(['nginx', '-T']).decode()
-    domain_info = [line for line in nginx_config.splitlines() if domain in line]
-    print("\n".join(domain_info))
-
-def list_users():
-    users = pwd.getpwall()
-    table = PrettyTable(['Username', 'Last Login Time'])
-    for user in users:
-        try:
-            last_login = subprocess.check_output(['lastlog', '-u', user.pw_name]).decode().splitlines()[-1]
-            table.add_row([user.pw_name, last_login])
-        except:
-            table.add_row([user.pw_name, 'Never logged in'])
+# Function to retrieve and display active ports and services
+def get_active_ports():
+    table = PrettyTable(["Port", "Service"])
+    for conn in psutil.net_connections(kind='inet'):
+        if conn.laddr and conn.status == 'LISTEN':
+            table.add_row([conn.laddr.port, conn.pid])
     print(table)
 
-def user_details(username):
-    try:
-        last_login = subprocess.check_output(['lastlog', '-u', username]).decode().splitlines()[-1]
-        print(f"User: {username}\nLast Login: {last_login}")
-    except:
-        print(f"User: {username}\nLast Login: Never logged in")
+# Function to retrieve and display docker images and containers
+def get_docker_info():
+    client = docker.from_env()
+    images = client.images.list()
+    containers = client.containers.list(all=True)
+    
+    image_table = PrettyTable(["Image ID", "Tags"])
+    for image in images:
+        image_table.add_row([image.id, ', '.join(image.tags)])
+    print(image_table)
+    
+    container_table = PrettyTable(["Container ID", "Image", "Status", "Ports"])
+    for container in containers:
+        container_table.add_row([container.id, container.image.tags, container.status, container.ports])
+    print(container_table)
 
-def time_range_activity(start_time, end_time):
-    # Implement activity within a time range retrieval logic here
-    pass
+# Function to retrieve and display nginx configurations
+def get_nginx_info():
+    # Dummy function; replace with actual nginx config retrieval logic
+    print("Nginx configuration information goes here")
 
+# Function to retrieve and display user login times
+def get_user_info():
+    table = PrettyTable(["User", "Last Login"])
+    for user in psutil.users():
+        table.add_row([user.name, time.ctime(user.started)])
+    print(table)
+
+# Main function to parse arguments and call respective functions
 def main():
-    parser = argparse.ArgumentParser(description="DevOpsFetch Tool")
-
-    parser.add_argument('-p', '--port', nargs='?', const=True, help='Display active ports or details of a specific port')
-    parser.add_argument('-d', '--docker', nargs='?', const=True, help='List Docker images and containers or details of a specific container')
-    parser.add_argument('-n', '--nginx', nargs='?', const=True, help='Display Nginx domains and ports or details of a specific domain')
-    parser.add_argument('-u', '--users', nargs='?', const=True, help='List users and last login times or details of a specific user')
-    parser.add_argument('-t', '--time', nargs=2, metavar=('START', 'END'), help='Display activities within a specified time range')
-    parser.add_argument('-h', '--help', action='help', help='Show this help message and exit')
+    parser = argparse.ArgumentParser(description='DevOpsFetch Tool for retrieving system information.')
+    parser.add_argument('-p', '--port', nargs='?', const=True, help='Display all active ports and services or detailed information about a specific port')
+    parser.add_argument('-d', '--docker', nargs='?', const=True, help='List all Docker images and containers or detailed information about a specific container')
+    parser.add_argument('-n', '--nginx', nargs='?', const=True, help='Display all Nginx domains and their ports or detailed configuration information for a specific domain')
+    parser.add_argument('-u', '--users', nargs='?', const=True, help='List all users and their last login times or detailed information about a specific user')
+    parser.add_argument('-t', '--time', nargs='?', help='Display activities within a specified time range')
+    parser.add_argument('--continuous', action='store_true', help='Enable continuous monitoring mode')
+    parser.add_argument('--log-file', help='Specify log file for continuous monitoring mode')
 
     args = parser.parse_args()
 
-    if args.port is not None:
-        if args.port is True:
-            list_ports()
-        else:
-            port_details(args.port)
-    elif args.docker is not None:
-        if args.docker is True:
-            list_docker()
-        else:
-            docker_details(args.docker)
-    elif args.nginx is not None:
-        if args.nginx is True:
-            list_nginx()
-        else:
-            nginx_details(args.nginx)
-    elif args.users is not None:
-        if args.users is True:
-            list_users()
-        else:
-            user_details(args.users)
-    elif args.time is not None:
-        start_time, end_time = args.time
-        time_range_activity(start_time, end_time)
-    else:
-        parser.print_help()
+    if args.port:
+        get_active_ports()
+    if args.docker:
+        get_docker_info()
+    if args.nginx:
+        get_nginx_info()
+    if args.users:
+        get_user_info()
+
+    if args.continuous:
+        logging.basicConfig(filename='/home/ubuntu/devopsfetch/logs/devopsfetch.log', level=logging.INFO, format='%(asctime)s %(message)s')
+        while True:
+            if args.port:
+                get_active_ports()
+            if args.docker:
+                get_docker_info()
+            if args.nginx:
+                get_nginx_info()
+            if args.users:
+                get_user_info()
+            time.sleep(60)
 
 if __name__ == "__main__":
     main()
+# Add at the start of devopsfetch.py
+with open('/home/ubuntu/devopsfetch/debug.log', 'a') as f:
+    f.write('Script started\n')
 

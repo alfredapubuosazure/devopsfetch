@@ -3,9 +3,11 @@ Description=DevOpsFetch Service
 After=network.target
 
 [Service]
-ExecStart=/usr/local/bin/devopsfetch -d > /var/log/devopsfetch.log 2>&1
+ExecStart=/home/ubuntu/devopsfetch/venv/bin/python /home/ubuntu/devopsfetch/devopsfetch.py --continuous --log-file /home/ubuntu/devopsfetch/logs/devopsfetch.log
+WorkingDirectory=/home/ubuntu/devopsfetch
+User=ubuntu
+Group=ubuntu
 Restart=always
-User=root
 
 [Install]
 WantedBy=multi-user.target
