@@ -1,0 +1,12 @@
+[Unit]
+Description=DevOpsFetch Service
+After=network.target
+
+[Service]
+ExecStart=/usr/local/bin/devopsfetch -d > /var/log/devopsfetch.log 2>&1
+Restart=always
+User=root
+
+[Install]
+WantedBy=multi-user.target
+
